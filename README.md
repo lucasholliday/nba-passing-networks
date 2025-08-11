@@ -10,7 +10,7 @@ Utilized **R** to analyze **global network properties** and model tie formation 
 ## 📂 Repository Structure
 
 - **`analysis/`**  
-  - `SNAP_Analysis.qmd` – Quarto document containing the full **R** analysis, including network construction, visualization, and statistical modeling.
+  - `SNAP_Analysis.qmd` – Quarto document containing the full **R** analysis, including network construction, visualization, and statistical modeling (ALAAM + ERGM).
 
 - **`data/`**  
   - **`attributes23/`** – Player-level attributes for the 2023–24 season.  
