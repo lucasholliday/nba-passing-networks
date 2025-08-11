@@ -36,7 +36,7 @@ Utilized **R** to analyze **global network properties** and model tie formation 
 
 Passing networks reveal team ball movement tendencies, highlighting hubs, peripheral players, and connectivity.
 
-| 2023–24 Example | 2024–25 Example | Metric Visualization |
+| 2024 NBA Champions | Star Player Jokic Directs the Offense | Young Rebuilding Team after star Damian Lillard |
 |-----------------|-----------------|----------------------|
 | ![2023–24 Example](docs/figures/05e74468-b78c-4172-b4cf-6bc330e699d3.png) | ![2024–25 Example](docs/figures/27a1ebf6-d6b8-41f5-8656-70d4c4b4a799.png) | ![Metric Visualization](docs/figures/76defc06-6bfd-42a1-ad69-d2a3270d414c.png) |
 
