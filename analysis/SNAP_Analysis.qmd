@@ -1,0 +1,653 @@
+---
+title: "SNAP: NBA Passing Networks"
+author: "Team 21"
+date: today
+format: 
+  pdf:
+      output-file: "SNAP_Team21_NBA_Networks"
+      output-ext: "pdf"
+      toc: true
+      toc-depth: 4
+      shift-heading-level-by: 2
+      fig-pos: "H"
+      fig-cap-location: top
+      geometry:
+        - top=1in
+        - right=.8in
+        - bottom=1in
+        - left=.8in
+      link-citations: true
+      linkcolor: blue
+      include-in-header: 
+        text: |
+          \usepackage{fancyhdr}
+          \usepackage{titling}
+          \pagestyle{fancy}
+          \fancyhf{}
+          \renewcommand\maketitle{
+            \fancyhead[C]{
+              \thetitle
+              \ifx \theauthor\empty  \else \ – \theauthor \fi
+              \ifx \thedate\empty  \else \ – \thedate \ \fi
+            }
+          }
+          \fancyfoot[C]{\thepage}
+---
+
+```{r}
+#| label: libraries
+#| echo: false
+#| output: false
+#| message: false
+
+# Start with a clear environment
+#rm(list=ls())
+
+# Load necessary packages
+library(igraph)
+library(scales)
+library(tidyverse)
+library(dplyr)
+library(statnet)
+library(Matrix)
+
+
+source("https://raw.githubusercontent.com/johankoskinen/ALAAM/main/MultivarALAAMalt.R")## Bayesian ALAAM has not yet been released as an R library so we are using code from the github of the package creator, Johan Koskinen, Professor of Statistics at the University of Stockholm
+# this will add lots of functions into your environment
+
+# ------------------------------------------------------------------------------
+# Set the working directory:
+# Session > Set Working Directory > To Source File Location
+# ------------------------------------------------------------------------------
+
+```
+
+# PART ONE: NBA TEAMS PASSING AND ASSISTS NETWORKS VISUALIZATION
+
+```{r}
+#| label: load data
+#| echo: false
+#| output: false
+#| message: false
+
+# function to plot weighted directed graphs
+team_networkW <- function(data_file, team_name, givenColor = "lightyellow", weight_type = "Passes") {
+  # Load and rename columns
+  data <- read_csv(data_file) |> rename(from = Passer, to = Receiver)
+  
+  # Create graph and assign weights (use either "Passes" or "Assists")
+  g <- graph_from_data_frame(data, directed = TRUE)
+  E(g)$weight <- data[[weight_type]]
+  # Vertex sizes scaled by total strength (weighted degree)
+  v_sizes <- rescale(strength(g, mode = "all"), to = c(5, 20))
+  
+  # Plot the network with weights preserved
+  plot(
+    g,
+    layout = layout_in_circle(g),
+    vertex.size = v_sizes,
+    vertex.label.cex = 0.7,
+    vertex.label.color = "black",
+    vertex.color = givenColor,
+    edge.arrow.size = 0.4,
+    edge.width = rescale(E(g)$weight, to = c(0.1, 5)),  # Line thickness reflects weight
+    edge.color = "black",
+    main = team_name
+  )
+}
+
+# define function for binarized directed graphs
+team_network <- function(data_file, team_name, givenColor, weight_type = "Passes") {
+  data <- read_csv(data_file) |> rename(from = Passer, to = Receiver)
+  
+  g <- graph_from_data_frame(data, directed = TRUE)
+  E(g)$weight <- data[[weight_type]]  # use "Passes" or "Assists"
+  v_sizes <- rescale(strength(g, mode = "all"), to = c(5, 20))
+  
+  # Binarize: keep only edges with weight > mean
+  mean_weight <- mean(E(g)$weight) ## BY MEAN
+  g <- delete_edges(g, E(g)[weight <= mean_weight])
+  E(g)$weight <- 1  # all remaining edges set to 1
+  
+  plot(
+    g,
+    layout = layout_in_circle(g),
+    vertex.size = v_sizes,
+    vertex.label.cex = 0.7,
+    vertex.label.color = "black",
+    vertex.color = givenColor,
+    edge.arrow.size = 0.4,
+    edge.color = "black",
+    main = team_name
+  )
+}
+# Chicago bulls weighted graph
+team_networkW("teams24/Chicago_Bulls_2024-25.csv", "Chicago Bulls 2024-25", rgb(192,6,30, alpha = 200, maxColorValue = 255))
+
+# Get pretty binarized passing plots
+#par(mfrow = c(2, 3), mar = c(1, 1, 3, 1))
+team_network("teams23/Oklahoma_City_Thunder_2023-24.csv", "Oklahoma City Thunder Assists | 57 Wins | 1 Seed | 2023-24", rgb(2,125,194, alpha = 200, maxColorValue = 255))
+team_network("teams23/Denver_Nuggets_2023-24.csv", "Denver Nuggets Assists | 57 Wins | 2 Seed | 2023-24", rgb(11,34,62, alpha = 190, maxColorValue = 255))
+team_network("teams23/Dallas_Mavericks_2023-24.csv", "Dallas Mavericks Assists | 50 Wins | 5 Seed | 2023-24", rgb(1,95,173, alpha = 200, maxColorValue = 255)) 
+team_network("teams23/Boston_Celtics_2023-24.csv", "Boston Celtics Assists | 64 Wins | 1 Seed | 2023-24", rgb(0,130,71, alpha = 200, maxColorValue = 255))
+team_network("teams23/Chicago_Bulls_2023-24.csv", "Chicago Bulls Assists | 39 Wins | 9 Seed | 2023-24", rgb(192,6,30, alpha = 200, maxColorValue = 255))
+team_network("teams23/Detroit_Pistons_2023-24.csv", "Detroit Pistons Assists | 14 Wins | 15 Seed | 2023-24", rgb(237,24,76, alpha = 200, maxColorValue = 255))
+team_network("teams23/Portland_Trail_Blazers_2023-24.csv", "Portland Trail Blazers Passes | 21 Wins | 15 Seed | 2023-24", rgb(181,34,48, alpha = 250, maxColorValue = 255))
+team_network("teams23/Denver_Nuggets_2023-24.csv", "Denver Nuggets Passes | 57 Wins | 2 Seed | 2023-24", rgb(11,34,62, alpha = 190, maxColorValue = 255))
+#par(mfrow = c(1, 1))
+
+#par(mfrow = c(2, 2))
+team_network("teams23/Portland_Trail_Blazers_2023-24.csv", "Portland Trail Blazers Passes | 21 Wins | 15 Seed | 2023-24", rgb(181,34,48, alpha = 250, maxColorValue = 255), "Passes")
+team_network("teams23/Denver_Nuggets_2023-24.csv", "Denver Nuggets Passes | 57 Wins | 2 Seed | 2023-24", rgb(11,34,62, alpha = 190, maxColorValue = 255), "Passes")
+team_network("teams23/Portland_Trail_Blazers_2023-24.csv", "Portland Trail Blazers Assists | 21 Wins | 15 Seed | 2023-24", rgb(181,34,48, alpha = 250, maxColorValue = 255), "Assists")
+team_network("teams23/Denver_Nuggets_2023-24.csv", "Denver Nuggets Assists | 57 Wins | 2 Seed | 2023-24", rgb(11,34,62, alpha = 190, maxColorValue = 255), "Assists")
+#par(mfrow = c(1, 1))
+
+## HOW TO PLOT
+# for binarized call
+# team_network <- function(data_file, team_name, givenColor, weight_type = "Passes")
+# for weighted call
+# team_networkW <- function(data_file, team_name, givenColor = "lightyellow", weight_type = "Passes") {
+
+
+```
+
+# PART TWO: TEAM SUCCESS IN NBA NETWORKS
+## Global Network Properties Correlation with Team Wins
+
+## Calculate Global Network Properties for Every Team
+```{r}
+#| label: load data
+#| echo: false
+#| output: false
+#| message: false
+
+compute_team_metrics <- function(season, stat_type = "Assists") {
+  teams <- c("Oklahoma_City_Thunder", "Denver_Nuggets", "Minnesota_Timberwolves", 
+             "Los_Angeles_Clippers", "Dallas_Mavericks", "Phoenix_Suns", 
+             "Los_Angeles_Lakers", "New_Orleans_Pelicans", "Sacramento_Kings", 
+             "Golden_State_Warriors", "Houston_Rockets", "Utah_Jazz", "Memphis_Grizzlies", 
+             "San_Antonio_Spurs", "Portland_Trail_Blazers", "Boston_Celtics", 
+             "New_York_Knicks", "Milwaukee_Bucks", "Cleveland_Cavaliers", 
+             "Orlando_Magic", "Indiana_Pacers", "Philadelphia_76ers", "Miami_Heat", 
+             "Chicago_Bulls", "Atlanta_Hawks", "Brooklyn_Nets", "Toronto_Raptors", 
+             "Charlotte_Hornets", "Washington_Wizards", "Detroit_Pistons")
+  
+  results <- data.frame()
+  
+  for (team in teams) {
+    folder <- ifelse(season == "2023-24", "teams23", "teams24")
+    file_path <- paste0(folder, "/", team, "_", season, ".csv")
+    if (!file.exists(file_path)) {
+      cat("❌ File not found:", file_path, "\n")
+      next
+    }
+    #cat("✅ Processing", team, "(", stat_type, season, ")\n")
+    
+    # Read and prep
+    data <- read_csv(file_path, show_col_types = FALSE) |>
+      rename(from = Passer, to = Receiver)
+    # Build graph
+    g <- graph_from_data_frame(data, directed = TRUE)
+    E(g)$weight <- data[[stat_type]]
+    # Binarize: keep only edges with weight > mean
+    mean_weight <- mean(E(g)$weight, na.rm = TRUE)
+    g <- delete_edges(g, E(g)[weight <= mean_weight])
+    E(g)$weight <- 1
+    # Compute metrics
+    team_metrics <- data.frame(
+      Team = team,
+      Season = season,
+      StatType = stat_type,
+      Nodes = vcount(g),
+      Edges = ecount(g),
+      Density = round(igraph::edge_density(g), 4),
+      Reciprocity = round(igraph::reciprocity(g), 4),
+      Transitivity = round(igraph::transitivity(g, type = "global"), 4),
+      AvgDegree = round(mean(igraph::degree(g)), 2),
+      OutDegreeCentralization = round(igraph::centr_degree(g, mode = "out", normalized = TRUE)$centralization, 4),
+      BetweennessCentralization = round(igraph::centr_betw(g, directed = TRUE, normalized = TRUE)$centralization, 4),
+      AssortativityOut = round(igraph::assortativity(g, igraph::degree(g, mode = "out"), directed = TRUE), 4),
+      AssortativityIn = round(igraph::assortativity(g, igraph::degree(g, mode = "in"), directed = TRUE), 4),
+      AvgPathLength = round(igraph::average.path.length(g, directed = TRUE), 2),
+      Diameter = igraph::diameter(g, directed = TRUE)
+    )
+    
+    results <- rbind(results, team_metrics)
+  }
+  
+  return(results)
+}
+
+# Run for all combinations and save
+all_results <- bind_rows(
+  compute_team_metrics("2023-24", "Passes"),
+  compute_team_metrics("2023-24", "Assists"),
+  compute_team_metrics("2024-25", "Passes"),
+  compute_team_metrics("2024-25", "Assists")
+)
+
+write_csv(all_results, "team_network_metrics_binarizedALLTESTER_combined.csv")
+data <- all_results
+```
+
+## Test Correlations Between Team Wins and Each Global Property 
+```{r}
+#| label: load data
+#| echo: false
+#| output: false
+#| message: false
+
+#View(data)
+
+# Add conferences to data
+data$Conf <- rep(c("WC", "EC", "WC", "EC"), each = 15)
+
+# Add team wins to data
+wins23WC <- c(57,57,56,51,50,49,47,47,46,46,41,31,27,22,21)
+wins23EC <- c(64,50,49,48,47,47,47,46,39,36,32,25,21,15,14)
+wins24WC <- c(68,50,49,50,39,36,50,21,40,48,52,17,48,34,36)
+wins24EC <- c(61,51,48,64,41,50,24,37,39,40,26,30,19,18,44)
+data$Wins <- c(wins23WC, wins23EC, wins23WC, wins23EC, wins24WC, wins24EC, wins24WC, wins24EC)
+
+passes <- data[data$StatType == "Passes", ]
+passesWC <- data[data$StatType == "Passes" & data$Conf == "WC", ]
+passesEC <- data[data$StatType == "Passes" & data$Conf == "EC", ]
+
+assists <- data[data$StatType == "Assists", ]
+assistsWC <- data[data$StatType == "Assists" & data$Conf == "WC", ]
+assistsEC <- data[data$StatType == "Assists" & data$Conf == "EC", ]
+
+# returns cor.test() results for each global network property above given p-value
+check_significant_correlations <- function(data, response = "Wins", vars = NULL, p_cutoff = 0.05) {
+  if (is.null(vars)) {
+    # Default variables if not provided
+    vars <- c("Edges", "Density", "Reciprocity", "Transitivity", "AvgDegree", 
+              "OutDegreeCentralization", "BetweennessCentralization", 
+              "AssortativityOut", "AssortativityIn", "AvgPathLength")
+  }
+  
+  results <- data.frame(Variable = character(),
+                        Correlation = numeric(),
+                        P_value = numeric(),
+                        stringsAsFactors = FALSE)
+  
+  for (var in vars) {
+    x <- data[[var]]
+    y <- data[[response]]
+    
+    if (is.numeric(x) && is.numeric(y)) {
+      test <- cor.test(x, y)
+      results <- rbind(results, data.frame(
+        Variable = var,
+        Correlation = test$estimate,
+        P_value = test$p.value
+      ))
+    } else {
+      warning(paste("Skipping non-numeric variable:", var))
+    }
+  }
+  
+  # Filter and return
+  sig_results <- subset(results, P_value < p_cutoff)
+  return(sig_results)
+}
+
+# p_cutoff = 0.05 for statistically significant
+# p_cutoff = 0.2 just to notice trends / close to being significant
+check_significant_correlations(passes, p_cutoff = 0.2) 
+check_significant_correlations(passesWC, p_cutoff = 0.2)
+check_significant_correlations(passesEC, p_cutoff = 0.2)
+
+
+check_significant_correlations(assists, p_cutoff = 0.2)
+check_significant_correlations(assistsWC, p_cutoff = 0.2)
+check_significant_correlations(assistsEC, p_cutoff = 0.2)
+```
+
+
+## Future exploration: fit models
+```{r}
+#| label: load data
+#| echo: false
+#| output: false
+#| message: false
+
+fitPath <- lm(Wins ~ AvgPathLength, data=assists)
+summary(fitPath)
+plot(assists$AvgPathLength, assists$Wins)
+abline(fitPath, col = "red")
+```
+
+# PART THREE: INDIVIDUAL SUCCESS IN NBA NETWORKS
+
+## Autologistic Actor-Attribute Models (ALAAMs)
+
+```{r}
+#| label: load data
+#| echo: false
+#| output: false
+#| message: false
+
+
+################################################################################
+# Part I: Adjacency Matrix Dataset and Plotting
+################################################################################
+
+
+teams <- c("Oklahoma_City_Thunder", "Denver_Nuggets", "Minnesota_Timberwolves", 
+           "Los_Angeles_Clippers", "Dallas_Mavericks", "Phoenix_Suns", 
+           "Los_Angeles_Lakers", "New_Orleans_Pelicans", "Sacramento_Kings", 
+           "Golden_State_Warriors", "Houston_Rockets", "Utah_Jazz", "Memphis_Grizzlies", 
+           "San_Antonio_Spurs", "Portland_Trail_Blazers")
+
+teams <- c("Boston_Celtics", "New_York_Knicks", "Milwaukee_Bucks", "Cleveland_Cavaliers", "Orlando_Magic", "Indiana_Pacers", "Philadelphia_76ers", "Miami_Heat", "Chicago_Bulls", "Atlanta_Hawks", "Brooklyn_Nets", "Toronto_Raptors", "Charlotte_Hornets", "Washington_Wizards", "Detroit_Pistons")
+
+teams <- c("Oklahoma_City_Thunder", "Denver_Nuggets", "Minnesota_Timberwolves", 
+           "Los_Angeles_Clippers", "Dallas_Mavericks", "Phoenix_Suns", 
+           "Los_Angeles_Lakers", "New_Orleans_Pelicans", "Sacramento_Kings", 
+           "Golden_State_Warriors", "Houston_Rockets", "Utah_Jazz", "Memphis_Grizzlies", 
+           "San_Antonio_Spurs", "Portland_Trail_Blazers", "Boston_Celtics", "New_York_Knicks", "Milwaukee_Bucks", "Cleveland_Cavaliers", "Orlando_Magic", "Indiana_Pacers", "Philadelphia_76ers", "Miami_Heat", "Chicago_Bulls", "Atlanta_Hawks", "Brooklyn_Nets", "Toronto_Raptors", "Charlotte_Hornets", "Washington_Wizards", "Detroit_Pistons")
+
+
+
+adj_list = list()
+
+for (team in teams) {
+  file_path <- paste0("teams23/", team, "_2023-24.csv")
+  
+  if (!file.exists(file_path)) {
+    #cat("❌ File not found:", file_path, "\n")
+    next
+  }
+  
+  #cat("✅ Processing", team, "\n")
+  
+  data <- read_csv(file_path, show_col_types = FALSE) |>
+    rename(from = Passer, to = Receiver)
+  
+  g <- graph_from_data_frame(data, directed = TRUE)
+  E(g)$weight <- data$Passes  # use "Passes" or "Assists"
+  
+  # Binarize: keep only edges with weight > mean
+  threshold <- mean(E(g)$weight) ## BY MEAN
+  g <- delete_edges(g, E(g)[weight <= threshold])
+  E(g)$weight <- 1  # all remaining edges set to 1
+  
+  adj <- as_adjacency_matrix(g, sparse = TRUE)
+  rownames(adj) <- colnames(adj) <- V(g)$name  # keep player names
+  adj_list[[team]] <- adj
+}  
+combined_adj <- Matrix::bdiag(adj_list)
+# Restore names manually
+all_names <- unlist(lapply(adj_list, rownames))
+rownames(combined_adj) <- colnames(combined_adj) <- all_names
+
+# Convert sparse matrix to igraph object
+combined_graph <- graph_from_adjacency_matrix(combined_adj, mode = "directed")
+###
+
+plot(
+  combined_graph,
+  #layout = layout_with_fr(combined_graph),
+  #layout = layout_nicely(combined_graph),     ## Automated layout recommendation from iGraph
+  #layout = layout_with_dh(combined_graph),    ## Davidson and Harel algorithm
+  #layout = layout_with_kk(combined_graph),    ## Spring algorithm
+  vertex.label = NA,
+  vertex.size = 3,
+  edge.arrow.size = 0.3,
+  edge.color = "black",
+  main = "NBA Passing Network (2023–24)"
+  #main = "NBA Western Conference Passing Network (2023–24)"
+  #main = "NBA Eastern Conference Passing Network (2023–24)"
+)
+players_df <- data.frame(Player = all_names)
+
+#any(duplicated(rownames(combined_adj)))
+#duplicated_names <- rownames(combined_adj)[duplicated(rownames(combined_adj))]
+#print(duplicated_names)
+
+# go to VS code to get data from these players
+#write.csv(players_df, "combined_players_listEC.csv", row.names = FALSE)
+
+```
+
+**Network-dependent structural variables:**
+
+*out.degree:* number of ties sent
+
+*in.degree:* number of ties received
+
+*rec.ties:* number of mutual ties
+
+*in.two.star:* in-stars reflecting dispersion in popularity
+
+*out.two.star:* out-stars reflecting dispersion in activity
+
+*mix.two.star:* correlation between indegree and outdegree (two-path)
+
+*in.three.star:* further measure of in-degree heterogeneity
+
+*out.three.star:* further measure of out-degree heterogeneity
+
+*triangles:* embedded in transitive triads
+
+```{r}
+#| label: hypothesis
+#| echo: false
+#| output: false
+##################################################################################
+# Part II: Hypotheses
+##################################################################################
+adj_NBA <- as.matrix(combined_adj)
+# Columns: Player, PPG, success, age, tenure_years, guard, prime_age, first_round
+#att_NBA <- read.csv("ALAAM_attributesWC_2023-24.csv", header=T)  
+#att_NBA <- read.csv("ALAAM_attributesEC_2023-24.csv", header=T)  
+att_NBA <- read.csv("ALAAM_attributesALL_2023-24.csv", header=T)  
+net_NBA <- as.network(adj_NBA, directed=T)
+
+# Calculate network-dependent variables ----------------------------------------
+# Function to calculate network-dependent variables
+calculate_network_vars <- function(adj, net, att) {
+  # Inputs: Adjacency matrix, network object, and attribute dataframe
+  # Output: New attribute dataframe which includes the network-dependent variables
+  
+  n <- nrow(adj)
+  
+  # Calculate structural effects
+  structural_effects <- data.frame(
+    out.degree <- matrix(rowSums(adj), n, 1), # number of ties sent
+    in.degree <- matrix(colSums(adj) , n, 1), # number of ties received
+    rec.ties <-  matrix(rowSums(adj * t(adj)), n , 1), # number of ties that are mutual
+    in.two.star <- matrix(choose(in.degree,2),n,1), #  in-stars reflecting dispersion in popularity
+    out.two.star <- matrix(choose(out.degree,2),n,1), #  out-stars reflecting dispersion in activity
+    mix.two.star <- in.degree*out.degree - rec.ties, # correlation between indegree and outdegree
+    in.three.star <- matrix(choose(in.degree,3),n,1), # further measure of in-degree heterogeneity
+    out.three.star <- matrix(choose(out.degree,3),n,1), # further measure of out-degree heterogeneity
+    triangles <- rowSums(adj * (adj %*% t(adj))) # embedded in transitive triads
+  )
+  colnames(structural_effects) <- c("out.degree", "in.degree", "reciprocity", "in.two.star", "out.two.star", "mix.two.star", "in.three.star", "out.three.star", "transitive.triangles")
+  
+  # Calculate alter effects
+  #alter_effects <- data.frame(
+    #alt.out.av.female = ifelse(structural_effects$out.degree == 0, NA, (adj %*% (net %v% "gender_female")) / structural_effects$out.degree),
+    #alt.out.av.homophily.education = ifelse(structural_effects$out.degree == 0, NA, ((adj %*% (net %v% "education")) * (net %v% "education")) / structural_effects$out.degree)
+  #)
+  #colnames(alter_effects) <- c("alt.out.av.female", "alt.out.av.homophily.education")
+  
+  # Combine calculated variables with the attribute dataframe
+  #att <- cbind(att, structural_effects, alter_effects)
+  att <- cbind(att, structural_effects)
+  
+  return(att)
+}
+
+# Calculate network-dependent variables for US and China using the above function
+att_NBA <- calculate_network_vars(adj_NBA, net_NBA, att_NBA)
+
+## CHANGE IF INTERESTED IN DIFFERENT "SUCCESS" LEVEL 
+success_points_cutoff <- 20
+att_NBA$ppg_binary <- ifelse(att_NBA$"PPG" >= success_points_cutoff, 1, 0)
+att_NBA <- att_NBA %>% relocate(ppg_binary, .after = PPG)
+
+chosenVars <- c(
+  "age",
+  "tenure_years",
+  "guard",
+  "prime_age",
+  "first_round", #include?
+  "draft_pick", # off for WC_orig
+  "out.degree",
+  "in.degree", 
+  "reciprocity",
+  "transitive.triangles"
+)
+numcovs <- length(chosenVars) # number of covariates
+
+# subset these chosen variables from the larger attribute dataframe into a smaller one called "covs"
+covs_NBA <- att_NBA[, chosenVars] 
+
+```
+
+# PART III: Initializing the Model:
+
+Follow the instructions provided in the code to format the dependent variable and covariates as required for ALAAM.
+
+```{r}
+#| label: simple model
+#| echo: false
+#| output: false
+###################################################################################
+# Part III: Initializing the Model
+###################################################################################
+
+DV_NBA <- att_NBA[, "ppg_binary"]
+
+# Format Covariates ------------------------------------------------------------
+# convert all values to numeric
+covs_NBA <- covs_NBA %>% mutate_if(is.character,as.numeric) 
+
+# replace NAs with 0
+covs_NBA[is.na(covs_NBA)] = 0  
+
+# convert the covs dataframe to a matrix object
+covs_NBA <- as.matrix(covs_NBA) 
+```
+
+# Running the Social Contagion Model
+
+## A. Simple social contagion model
+
+```{r}
+#| label: simple model 0
+#| echo: false
+###################################################################################
+# Part IV: Running the Social Contagion Model
+###################################################################################
+# Run 0 to create initial covariance matrix
+res.0_NBA <- BayesALAAM(y = DV_NBA,   # dependent variable
+                       ADJ = adj_NBA,  # network
+                       covariates = covs_NBA,   # covariates
+                       directed = T,        # directed / undirected network
+                       Iterations = 10000,   # number of iterations
+                       burnin = 100,
+                       contagion = c('simple'), # contagion effect(s)
+                       saveFreq = 5000
+                       # saveFreq = 500    # updating the save frequency allows you to monitor
+                       # the parameter estimates more frequently
+)
+```
+
+```{r}
+#| label: model 0 MCMC
+#| echo: false
+# Now taking a look at the MCMC output in trace plots:
+plot(ts(res.0_NBA$Thetas))
+```
+
+Improve the model by taking the Theta estimates from the model as inputs to another model, by setting Propsigma to the thetas obtained from the estimation in the BayesALAAM function. Also increase the iterations to 20,000.
+
+```{r}
+#| label: model 1
+#| echo: false
+# You can improve the mixing by using a better proposal covariance
+# This proposal variance (covariance) matrix, directly regulates how big jumps we are proposing 
+# use the covariance matrix from the previous run 
+# Run 1 to create initial covariance matrix
+Propsigma <- cov(res.0_NBA$Theta)
+# and increase the number of iterations to 20,000 and run the model again
+res.1_NBA <- BayesALAAM(y = DV_NBA,
+                       ADJ = adj_NBA,
+                       covariates = covs_NBA,
+                       directed = T,
+                       Iterations = 40000, # ok to juice out iterations?
+                       burnin = 100,
+                       contagion = c('simple'),
+                       saveFreq = 20000,
+                       # saveFreq = 500,
+                       PropSigma=Propsigma
+)
+```
+
+```{r}
+#| label: model 1 MCMC
+#| echo: false
+# Again, plot and examine the MCMC output in trace plots 
+plot(ts(res.1_NBA$Thetas))
+
+#Plot and save the posteriors draws to a PDF:
+#plotPost(ALAAMresult=res.1_NBA, figname="ALAAM_posteriors_NBA")
+```
+
+```{r}
+#| label: model 1 summary
+#| echo: false
+#| 
+# Since we are satisfied with the performance of the algorithm, produce a results table
+write.res.table(burnin=1, # should be set sufficiently high
+                datamat=res.1_NBA$Thetas, # the result from BayesALAAM
+                thin=1, # should be set so that SACF is sufficiently low, important for CI
+                tabname="ALAAM_results_NBA" ) # the name appended to the table that is saved
+temp <- read.csv( "ALAAM_results_NBA.csv" )
+temp <- cbind(temp, ESS=res.1_NBA$ResTab[,"ESS"])
+temp <- cbind(temp, SACF10=res.1_NBA$ResTab[,"SACF 10"])
+temp <- cbind(temp, SACF30=res.1_NBA$ResTab[,"SACF 30"])
+
+write.csv(temp,  "ALAAM_results_NBA_ALL.csv", row.names=F)
+#file.show("ALAAM_results_NBA.csv")
+```
+
+# Part V: Goodness-of-Fit (gof) Test
+
+```{r}
+#| label: GOF1 US
+#| echo: false
+#####################################################################################
+# Part V: Goodness-of-fit (GOF) test
+#####################################################################################
+
+sim.1_NBA <- get.gof.distribution(NumIterations=500, # number of vectors to draw
+                                 res=res.1_NBA, # the ALAAM estimation object that contains model and results
+                                 burnin=100, # number of iterations discarded from GOF distribution
+                                 thinning = 1000, # number of iterations between sample points
+                                 contagion ='simple') # should be the same as for model fitted
+
+# The object sim.1 contains the observed statistics, the goodness-of-fit 
+# distribution, and other outputs that are used for summarizing in the GOF table
+
+gof.table(obs.stats= sim.1_NBA$stats, # observed statistics included not fitted statistics
+          sim.stats= sim.1_NBA$Sav.gof, # simulated goodness-of-fit statistics
+          name.vec= sim.1_NBA$gof.stats.names, # names of statistics calculate, not all will be used if undirected
+          tabname='ALAAM_gof_NBA', # name of file saved
+          pvalues=T, # posterior predictive p-values
+          save.tab ='csv', # save a csv file or a LaTex file (for LaTex, update suffix from csv to tex)
+          directed=T)
+
+#file.show("ALAAM_gof_NBA.pdf")
+```
+
+
+```{r}
+#| label: save env
+save.image(file = "Team21_SNAP_Track1_RData.RData")
+```
